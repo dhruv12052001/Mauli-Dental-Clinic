@@ -1,0 +1,589 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mauli Dental Clinic - Appointment Bot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f7ff; /* Light blue background */
+        }
+        /* Custom scrollbar for chat */
+        #chatbox::-webkit-scrollbar {
+            width: 6px;
+        }
+        #chatbox::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        #chatbox::-webkit-scrollbar-thumb {
+            background: #a8a8a8;
+            border-radius: 10px;
+        }
+        #chatbox::-webkit-scrollbar-thumb:hover {
+            background: #8a8a8a;
+            border-radius: 10px;
+        }
+        .bot-message {
+            background-color: #e0f2fe; /* Lighter blue for bot */
+            border-color: #bae6fd;
+        }
+        .user-message {
+            background-color: #d1fae5; /* Light green for user */
+            border-color: #a7f3d0;
+            align-self: flex-end;
+        }
+        .message {
+            max-width: 80%;
+            word-wrap: break-word;
+            margin-bottom: 8px;
+            padding: 10px 15px;
+            border-radius: 15px;
+            border: 1px solid transparent;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+         /* Style for image messages */
+        .image-message {
+            max-width: 80%; /* Similar width constraint */
+            margin-bottom: 8px;
+            padding: 5px; /* Less padding for images */
+            border-radius: 15px;
+            border: 1px solid transparent;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            background-color: #e0f2fe; /* Match bot message background */
+            align-self: flex-start; /* Images typically from bot */
+        }
+        .image-message img {
+             max-width: 100%; /* Ensure image fits within the div */
+             height: auto;
+             border-radius: 10px; /* Rounded corners for the image */
+        }
+        /* Simple pulsating animation for bot typing indicator */
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .typing-indicator span {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            margin: 0 2px;
+            background-color: #60a5fa; /* Blue dots */
+            border-radius: 50%;
+            animation: pulse 1.4s infinite ease-in-out both;
+        }
+        .typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+        .typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+        .typing-indicator span:nth-child(3) { animation-delay: 0s; }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+    <div class="w-full max-w-lg bg-white rounded-lg shadow-xl overflow-hidden border border-gray-200">
+        <div class="bg-blue-600 text-white p-4 flex justify-between items-center">
+            <h1 class="text-xl font-semibold">Mauli Dental Clinic Bot</h1>
+            <div class="relative">
+                <select id="languageSelector" class="bg-blue-700 text-white border border-blue-500 rounded-md p-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 appearance-none cursor-pointer pr-6">
+                    <option value="en">English</option>
+                    <option value="hi">हिन्दी</option>
+                    <option value="kn">ಕನ್ನಡ</option>
+                    <option value="mr">मराठी</option>
+                    <option value="ta">தமிழ்</option>
+                    <option value="ml">മലയാളം</option>
+                </select>
+                   <svg class="w-4 h-4 absolute right-2 top-1/2 transform -translate-y-1/2 text-white pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            </div>
+        </div>
+
+        <div id="chatbox" class="h-96 p-4 overflow-y-auto flex flex-col space-y-2 bg-gray-50">
+            <div id="typingIndicator" class="hidden bot-message message w-auto self-start">
+                   <div class="typing-indicator"><span></span><span></span><span></span></div>
+            </div>
+        </div>
+
+        <div class="p-4 border-t border-gray-200 bg-white flex items-center">
+            <input type="text" id="userInput" class="flex-grow border border-gray-300 rounded-l-md p-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="Type your message...">
+            <button id="sendButton" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold p-2 rounded-r-md transition duration-200">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // --- DOM Elements ---
+        const chatbox = document.getElementById('chatbox');
+        const userInput = document.getElementById('userInput');
+        const sendButton = document.getElementById('sendButton');
+        const languageSelector = document.getElementById('languageSelector');
+        const typingIndicator = document.getElementById('typingIndicator');
+
+        // --- Language Translations ---
+        const translations = {
+            en: {
+                welcome: "Welcome to Mauli Dental Clinic! How can I help you today? You can ask to book an appointment.",
+                askReason: "Great! What is the reason for your visit? (e.g., Checkup, Cleaning, Pain, Consultation)",
+                askDateTime: "Okay. When would you like to schedule your appointment? Please provide a preferred date and time.\nClinic hours are Monday to Friday, 9:00 AM to 5:00 PM. (e.g., 'Tomorrow at 3 PM', 'April 25th morning')",
+                askName: "Got it. What is the patient's full name?",
+                // Modified contact prompt to mention WhatsApp
+                askContact: "Thanks, {name}. What is a good contact number? (Please provide a number where you can receive WhatsApp messages for confirmation)",
+                confirmBooking: "Perfect! Just to confirm: Appointment for {name} regarding '{reason}' on/around {dateTime}. Contact number: {contact}. Clinic hours are Mon-Fri, 9 AM - 5 PM. Is this correct? (Yes/No)",
+                // --- Payment & Confirmation Flow Messages ---
+                askPayment: "Great! To confirm your booking, a small advance payment is required. Please scan the QR code below using any UPI app to proceed.",
+                paymentSimulation: "Waiting for your payment scan...", // Modified text
+                paymentSuccessful: "Payment successful! Confirming your appointment...", // New message
+                whatsappSending: "Sending confirmation to WhatsApp...", // New message for simulation
+                 // Modified final confirmation text to mention WhatsApp
+                bookingPaidConfirmed: "Your appointment is confirmed! A detailed confirmation message has been sent to your WhatsApp number: {contact}. We look forward to seeing you at Mauli Dental Clinic!",
+                // --- End Payment & Confirmation ---
+                bookingCancelled: "Okay, the booking process has been cancelled. Let me know if you need anything else.",
+                fallback: "Sorry, I didn't quite understand that. Could you please rephrase? You can ask to 'book an appointment'.",
+                enterMessage: "Please type a message.",
+                changeLang: "Language changed to English.",
+                placeholder: "Type your message...",
+                send: "Send",
+                yes: "yes",
+                no: "no",
+                bookKeywords: ["book", "appointment", "schedule", "visit", "see doctor", "dentist"],
+                reasonKeywords: ["checkup", "cleaning", "pain", "consultation", "toothache", "filling", "braces", "implant"],
+                greetingKeywords: ["hi", "hello", "hey", "namaste", "good morning", "good afternoon", "good evening"]
+            },
+             hi: {
+                welcome: "मौली डेंटल क्लिनिक में आपका स्वागत है! मैं आज आपकी कैसे मदद कर सकता हूँ? आप अपॉइंटमेंट बुक करने के लिए कह सकते हैं।",
+                askReason: "बढ़िया! आपके आने का कारण क्या है? (उदाहरण: जांच, सफाई, दर्द, परामर्श)",
+                askDateTime: "ठीक है। आप अपनी अपॉइंटमेंट कब शेड्यूल करना चाहेंगे? कृपया पसंदीदा तारीख और समय बताएं।\nक्लिनिक का समय सोमवार से शुक्रवार, सुबह 9:00 बजे से शाम 5:00 बजे तक है। (जैसे, 'कल दोपहर 3 बजे', '25 अप्रैल सुबह')",
+                askName: "समझ गया। मरीज का पूरा नाम क्या है?",
+                // Modified contact prompt to mention WhatsApp
+                askContact: "धन्यवाद, {name}। संपर्क के लिए अच्छा नंबर क्या है? (कृपया एक ऐसा नंबर दें जिस पर आप पुष्टि के लिए व्हाट्सएप संदेश प्राप्त कर सकें)",
+                confirmBooking: "बिल्कुल सही! बस पुष्टि करने के लिए: {name} के लिए अपॉइंटमेंट '{reason}' के संबंध में {dateTime} को/के आसपास। संपर्क नंबर: {contact}। क्लिनिक का समय सोम-शुक्र, सुबह 9 बजे - शाम 5 बजे है। क्या यह सही है? (हाँ/नहीं)",
+                // --- Payment & Confirmation Flow Messages ---
+                askPayment: "बढ़िया! आपकी बुकिंग की पुष्टि करने के लिए, एक छोटी अग्रिम भुगतान की आवश्यकता है। कृपया किसी भी UPI ऐप का उपयोग करके नीचे दिए गए QR कोड को स्कैन करके आगे बढ़ें।",
+                paymentSimulation: "आपके भुगतान स्कैन की प्रतीक्षा की जा रही है...", // Modified text
+                paymentSuccessful: "भुगतान सफल! आपकी अपॉइंटमेंट की पुष्टि की जा रही है...", // New message
+                whatsappSending: "व्हाट्सएप पर पुष्टि भेजी जा रही है...", // New message for simulation
+                 // Modified final confirmation text to mention WhatsApp
+                bookingPaidConfirmed: "आपकी अपॉइंटमेंट पक्की हो गई है! आपके व्हाट्सएप नंबर: {contact} पर एक विस्तृत पुष्टि संदेश भेजा गया है। हम आपको मौली डेंटल क्लिनिक में देखने के लिए उत्सुक हैं!",
+                // --- End Payment & Confirmation ---
+                bookingCancelled: "ठीक है, बुकिंग प्रक्रिया रद्द कर दी गई है। अगर आपको कुछ और चाहिए तो मुझे बताएं।",
+                fallback: "क्षमा करें, मैं वह समझ नहीं पाया। क्या आप कृपया इसे फिर से कह सकते हैं? आप 'अपॉइंटमेंट बुक करें' पूछ सकते हैं।",
+                enterMessage: "कृपया संदेश लिखें।",
+                changeLang: "भाषा बदलकर हिन्दी कर दी गई है।",
+                placeholder: "अपना संदेश लिखें...",
+                send: "भेजें",
+                yes: "हाँ",
+                no: "नहीं",
+                bookKeywords: ["बुक", "अपॉइंटमेंट", "समय", "मिलना", "डॉक्टर", "डेंटिस्ट", "नियुक्ति"],
+                reasonKeywords: ["जांच", "सफाई", "दर्द", "परामर्श", "दांत दर्द", "भरना", "ब्रेसिज़", "इम्प्लांट"],
+                greetingKeywords: ["नमस्ते", "नमस्कार", "हेलो", "हाय", "सुप्रभात", "शुभ दोपहर", "शुभ संध्या"]
+            },
+             kn: {
+                welcome: "ಮೌಳಿ ದಂತ ಚಿಕಿತ್ಸಾಲಯಕ್ಕೆ ಸ್ವಾಗತ! ಇಂದು ನಾನು ನಿಮಗೆ ಹೇಗೆ ಸಹಾಯ ಮಾಡಬಹುದು? ನೀವು ಅಪಾಯಿಂಟ್‌ಮೆಂಟ್ ಬುಕ್ ಮಾಡಲು ಕೇಳಬಹುದು.",
+                askReason: "ಉತ್ತಮ! ನಿಮ್ಮ ಭೇಟಿಯ ಕಾರಣವೇನು? (ಉದಾಹರಣೆಗೆ: ತಪಾಸಣೆ, ಸ್ವಚ್ಛಗೊಳಿಸುವಿಕೆ, ನೋವು, ಸಮಾಲೋಚನೆ)",
+                askDateTime: "ಸರಿ. ನಿಮ್ಮ ಅಪಾಯಿಂಟ್‌ಮೆಂಟ್ ಅನ್ನು ಯಾವಾಗ ನಿಗದಿಪಡಿಸಲು ಬಯಸುತ್ತೀರಿ? ದಯವಿಟ್ಟು ಆದ್ಯತೆಯ ದಿನಾಂಕ ಮತ್ತು ಸಮಯವನ್ನು ನೀಡಿ.\nಕ್ಲಿನಿಕ್ ಸಮಯ ಸೋಮವಾರದಿಂದ ಶುಕ್ರವಾರದವರೆಗೆ, ಬೆಳಿಗ್ಗೆ 9:00 ರಿಂದ ಸಂಜೆ 5:00 ರವರೆಗೆ. (ಉದಾ: 'ನಾಳೆ ಮಧ್ಯಾಹ್ನ 3 ಗಂಟೆಗೆ', 'ಏಪ್ರಿಲ್ 25 ರ ಬೆಳಿಗ್ಗೆ')",
+                askName: "ಅರ್ಥವಾಯಿತು. ರೋಗಿಯ ಪೂರ್ಣ ಹೆಸರೇನು?",
+                // Modified contact prompt to mention WhatsApp
+                askContact: "ಧನ್ಯವಾದಗಳು, {name}. ಸಂಪರ್ಕಿಸಲು ಉತ್ತಮ ಸಂಖ್ಯೆ ಯಾವುದು? (ದೃಢೀಕರಣಕ್ಕಾಗಿ WhatsApp ಸಂದೇಶಗಳನ್ನು ಸ್ವೀಕರಿಸಲು ನಿಮಗೆ ಸಾಧ್ಯವಾಗುವ ಸಂಖ್ಯೆಯನ್ನು ಒದಗಿಸಿ)",
+                confirmBooking: "ಪರಿಪೂರ್ಣ! ಖಚಿತಪಡಿಸಲು: {name} ಗಾಗಿ ಅಪಾಯಿಂಟ್‌ಮೆಂಟ್ '{reason}' ಕುರಿತು {dateTime} ರಂದು/ಸುಮಾರು. ಸಂಪರ್ಕ ಸಂಖ್ಯೆ: {contact}. ಕ್ಲಿನಿಕ್ ಸಮಯ ಸೋಮ-ಶುಕ್ರ, ಬೆಳಿಗ್ಗೆ 9 - ಸಂಜೆ 5. ಇದು ಸರಿಯೇ? (ಹೌದು/ಇಲ್ಲ)",
+                // --- Payment & Confirmation Flow Messages ---
+                askPayment: "ಉತ್ತಮ! ನಿಮ್ಮ ಬುಕಿಂಗ್ ಅನ್ನು ಖಚಿತಪಡಿಸಲು, ಸಣ್ಣ ಮುಂಗಡ ಪಾವತಿ ಅಗತ್ಯವಿದೆ. ದಯವಿಟ್ಟು ಯಾವುದೇ UPI ಅಪ್ಲಿಕೇಶನ್ ಬಳಸಿಕೊಂಡು ಕೆಳಗಿನ QR ಕೋಡ್ ಅನ್ನು ಸ್ಕ್ಯಾನ್ ಮಾಡುವ ಮೂಲಕ ಮುಂದುವರಿಯಿರಿ.",
+                paymentSimulation: "ನಿಮ್ಮ ಪಾವತಿ ಸ್ಕ್ಯಾನ್‌ಗಾಗಿ ಕಾಯಲಾಗುತ್ತಿದೆ...", // Modified text
+                paymentSuccessful: "ಪಾವತಿ ಯಶಸ್ವಿಯಾಗಿದೆ! ನಿಮ್ಮ ಅಪಾಯಿಂಟ್‌ಮೆಂಟ್ ಅನ್ನು ದೃಢೀಕರಿಸಲಾಗುತ್ತಿದೆ...", // New message
+                whatsappSending: "WhatsApp ಗೆ ದೃಢೀಕರಣ ಕಳುಹಿಸಲಾಗುತ್ತಿದೆ...", // New message for simulation
+                // Modified final confirmation text to mention WhatsApp
+                bookingPaidConfirmed: "ನಿಮ್ಮ ಅಪಾಯಿಂಟ್‌ಮೆಂಟ್ ಖಚಿತಗೊಂಡಿದೆ! ನಿಮ್ಮ WhatsApp ಸಂಖ್ಯೆಗೆ: {contact} ವಿವರವಾದ ದೃಢೀಕರಣ ಸಂದೇಶವನ್ನು ಕಳುಹಿಸಲಾಗಿದೆ. ಮೌಳಿ ದಂತ ಚಿಕಿತ್ಸಾಲಯದಲ್ಲಿ ನಿಮ್ಮನ್ನು ನೋಡಲು ನಾವು ಎದುರು ನೋಡುತ್ತಿದ್ದೇವೆ!",
+                // --- End Payment & Confirmation ---
+                bookingCancelled: "ಸರಿ, ಬುಕಿಂಗ್ ಪ್ರಕ್ರಿಯೆಯನ್ನು ರದ್ದುಗೊಳಿಸಲಾಗಿದೆ. ನಿಮಗೆ ಬೇರೆನಾದರೂ ಅಗತ್ಯವಿದ್ದರೆ ನನಗೆ ತಿಳಿಸಿ.",
+                fallback: "ಕ್ಷಮಿಸಿ, ನನಗೆ ಅದು ಸರಿಯಾಗಿ ಅರ್ಥವಾಗಲಿಲ್ಲ. ದಯವಿಟ್ಟು ಅದನ್ನು ಬೇರೆ ರೀತಿಯಲ್ಲಿ ಹೇಳಬಹುದೇ? ನೀವು 'ಅಪಾಯಿಂಟ್‌ಮೆಂಟ್ ಬುಕ್ ಮಾಡಿ' ಎಂದು ಕೇಳಬಹುದು.",
+                enterMessage: "ದಯವಿಟ್ಟು ಸಂದೇಶವನ್ನು ಟೈಪ್ ಮಾಡಿ.",
+                changeLang: "ಭಾಷೆಯನ್ನು ಕನ್ನಡಕ್ಕೆ ಬದಲಾಯಿಸಲಾಗಿದೆ.",
+                placeholder: "ನಿಮ್ಮ ಸಂದೇಶವನ್ನು ಟೈಪ್ ಮಾಡಿ...",
+                send: "ಕಳುಹಿಸು",
+                yes: "ಹೌದು",
+                no: "ಇಲ್ಲ",
+                bookKeywords: ["ಬುಕ್", "ಅಪಾಯಿಂಟ್ಮೆಂಟ್", "ಭೇಟಿ", "ಡಾಕ್ಟರ್", "ದಂತವೈದ್ಯರು", "ಸಮಯ"],
+                reasonKeywords: ["ತಪಾಸಣೆ", "ಸ್ವಚ್ಛತೆ", "ನೋವು", "ಸಮಾಲೋಚನೆ", "ಹಲ್ಲು ನೋವು", "ತುಂಬುವುದು", "ಬ್ರೇಸಸ್", "ಇಂಪ್ಲಾಂಟ್"],
+                greetingKeywords: ["ನಮಸ್ಕಾರ", "ಹಲೋ", "ಹಾಯ್", "ಶುಭೋದಯ", "ಶುಭ ಮಧ್ಯಾಹ್ನ", "ಶುಭ ಸಂಜೆ"]
+            },
+            mr: {
+                welcome: "मौली डेंटल क्लिनिकमध्ये आपले स्वागत आहे! मी आज तुमची कशी मदत करू शकतो? तुम्ही अपॉइंटमेंट बुक करण्यास सांगू शकता.",
+                askReason: "उत्तम! तुमच्या भेटीचे कारण काय आहे? (उदा. तपासणी, स्वच्छता, वेदना, सल्ला)",
+                askDateTime: "ठीक आहे. तुम्हाला तुमची अपॉइंटमेंट कधी शेड्यूल करायची आहे? कृपया पसंतीची तारीख आणि वेळ सांगा.\nक्लिनिकची वेळ सोमवार ते शुक्रवार, सकाळी ९:०० ते संध्याकाळी ५:०० पर्यंत आहे. (उदा. 'उद्या दुपारी ३ वाजता', '२५ एप्रिल सकाळी')",
+                askName: "समजले. रुग्णाचे पूर्ण नाव काय आहे?",
+                // Modified contact prompt to mention WhatsApp
+                askContact: "धन्यवाद, {name}। संपर्क करण्यासाठी चांगला नंबर कोणता आहे? (कृपया असा नंबर द्या ज्यावर तुम्हाला पुष्टीकरणासाठी व्हाट्सएप संदेश मिळू शकेल)",
+                confirmBooking: "उत्तम! फक्त पुष्टी करण्यासाठी: {name} साठी अपॉइंटमेंट '{reason}' संदर्भात {dateTime} रोजी/सुमारे. संपर्क क्रमांक: {contact}. क्लिनिकची वेळ सोम-शुक्र, सकाळी ९ ते संध्याकाळी ५ आहे. हे बरोबर आहे का? (होय/नाही)",
+                // --- Payment & Confirmation Flow Messages ---
+                askPayment: "उत्तम! तुमची बुकिंग निश्चित करण्यासाठी, थोडी आगाऊ रक्कम भरणे आवश्यक आहे. कृपया कोणत्याही UPI ॲपचा वापर करून खालील QR कोड स्कॅन करून पुढे जा.",
+                paymentSimulation: "तुमच्या पेमेंट स्कैनची वाट पाहत आहे...", // Modified text
+                paymentSuccessful: "पेमेंट यशस्वी! तुमची अपॉइंटमेंट निश्चित करत आहे...", // New message
+                whatsappSending: "व्हाट्सएपवर पुष्टी पाठवली जात आहे...", // New message for simulation
+                // Modified final confirmation text to mention WhatsApp
+                bookingPaidConfirmed: "तुमची अपॉइंटमेंट निश्चित झाली आहे! तुमच्या व्हाट्सएप नंबर: {contact} वर एक सविस्तर पुष्टी संदेश पाठवला आहे. आम्ही तुम्हाला मौली डेंटल क्लिनिकमध्ये भेटण्यास उत्सुक आहोत!",
+                // --- End Payment & Confirmation ---
+                bookingCancelled: "ठीक आहे, बुकिंग प्रक्रिया रद्द केली आहे. तुम्हाला आणखी काही हवे असल्यास मला कळवा.",
+                fallback: "क्षमस्व, मला ते नीट समजले नाही. कृपया तुम्ही ते पुन्हा सांगू शकाल का? तुम्ही 'अपॉइंटमेंट बुक करा' असे विचारू शकता.",
+                enterMessage: "कृपया संदेश टाइप करा.",
+                changeLang: "भाषा मराठीमध्ये बदलली आहे.",
+                placeholder: "तुमचा संदेश टाइप करा...",
+                send: "पाठवा",
+                yes: "होय",
+                no: "नाही",
+                bookKeywords: ["बुक", "अपॉइंटमेंट", "वेळ", "भेट", "डॉक्टर", "डेंटिस्ट", "नियुक्ती"],
+                reasonKeywords: ["तपासणी", "स्वच्छता", "वेदना", "सल्ला", "दातदुखी", "भरणे", "ब्रेसेस", "इम्प्लांट"],
+                greetingKeywords: ["नमस्कार", "हॅलो", "हाय", "शुभ सकाळ", "शुभ दुपार", "शुभ संध्याकाळ"]
+            },
+            ta: {
+                welcome: "மௌலி பல் மருத்துவமனைக்கு வரவேற்கிறோம்! இன்று நான் உங்களுக்கு எப்படி உதவ முடியும்? நீங்கள் சந்திப்பை பதிவு செய்ய கேட்கலாம்.",
+                askReason: "அருமை! உங்கள் வருகைக்கான காரணம் என்ன? (எ.கா., பரிசோதனை, சுத்தம் செய்தல், வலி, ஆலோசனை)",
+                askDateTime: "சரி. உங்கள் சந்திப்பை எப்போது திட்டமிட விரும்புகிறீர்கள்? தயவுசெய்து விருப்பமான தேதி மற்றும் நேரத்தை வழங்கவும்.\nமருத்துவமனை நேரம் திங்கள் முதல் வெள்ளி வரை, காலை 9:00 மணி முதல் மாலை 5:00 மணி வரை. (எ.கா., 'நாளை மாலை 3 மணிக்கு', 'ஏப்ரல் 25 காலை')",
+                askName: "புரிந்தது. நோயாளியின் முழு பெயர் என்ன?",
+                // Modified contact prompt to mention WhatsApp
+                askContact: "நன்றி, {name}. தொடர்பு கொள்ள ஒரு நல்ல எண் என்ன? (உறுதிப்படுத்தலுக்காக WhatsApp செய்திகளைப் பெறக்கூடிய எண்ணை வழங்கவும்)",
+                confirmBooking: "நன்று! உறுதிப்படுத்த மட்டும்: {name} க்கான சந்திப்பு '{reason}' தொடர்பாக {dateTime} அன்று/சுமார். தொடர்பு எண்: {contact}. மருத்துவமனை நேரம் திங்கள்-வெள்ளி, காலை 9 - மாலை 5. இது சரியா? (ஆம்/இல்லை)",
+                // --- Payment & Confirmation Flow Messages ---
+                askPayment: "அருமை! உங்கள் முன்பதிவை உறுதிப்படுத்த, ஒரு சிறிய முன்பணம் செலுத்த வேண்டும். தயவுசெய்து எந்த UPI செயலியைப் பயன்படுத்தியும் கீழே உள்ள QR குறியீட்டை ஸ்கேன் செய்து தொடரவும்.",
+                paymentSimulation: "உங்கள் கட்டண ஸ்கேன் க்காக காத்திருக்கிறது...", // Modified text
+                paymentSuccessful: "பணம் செலுத்துதல் வெற்றி! உங்கள் சந்திப்பு உறுதி செய்யப்படுகிறது...", // New message
+                whatsappSending: "WhatsApp க்கு உறுதிப்படுத்தல் அனுப்பப்படுகிறது...", // New message for simulation
+                // Modified final confirmation text to mention WhatsApp
+                bookingPaidConfirmed: "உங்கள் சந்திப்பு உறுதி செய்யப்பட்டது! உங்கள் WhatsApp எண்: {contact} க்கு விரிவான உறுதிப்படுத்தல் செய்தி அனுப்பப்பட்டுள்ளது. மௌலி பல் மருத்துவமனையில் உங்களைப் பார்க்க நாங்கள் ஆவலுடன் காத்திருக்கிறோம்!",
+                // --- End Payment & Confirmation ---
+                bookingCancelled: "சரி, முன்பதிவு செயல்முறை ரத்து செய்யப்பட்டது. உங்களுக்கு வேறு ஏதாவது தேவைப்பட்டால் எனக்குத் தெரியப்படுத்துங்கள்.",
+                fallback: "மன்னிக்கவும், எனக்கு அது சரியாகப் புரியவில்லை. தயவுசெய்து அதை வேறுவிதமாகக் கூற முடியுமா? நீங்கள் 'சந்திப்பை பதிவு செய்' என்று கேட்கலாம்.",
+                enterMessage: "தயவுசெய்து ஒரு செய்தியைத் தட்டச்சு செய்யவும்.",
+                changeLang: "மொழி தமிழுக்கு மாற்றப்பட்டது.",
+                placeholder: "உங்கள் செய்தியைத் தட்டச்சு செய்க...",
+                send: "அனுப்பு",
+                yes: "ஆம்",
+                no: "இல்லை",
+                bookKeywords: ["பதிவு", "சந்திப்பு", "நேரம்", "மருத்துவர்", "பல் மருத்துவர்"],
+                reasonKeywords: ["பரிசோதனை", "சுத்தம்", "வலி", "ஆலோசனை", "பல் வலி", "நிரப்புதல்", "பிரேஸ்கள்", "இம்ப்லாண்ட்"],
+                greetingKeywords: ["வணக்கம்", "ஹலோ", "ஹாய்", "காலை வணக்கம்", "மதிய வணக்கம்", "மாலை வணக்கம்"]
+            },
+            ml: {
+                welcome: "മൗലി ഡെന്റൽ ക്ലിനിക്കിലേക്ക് സ്വാഗതം! ഇന്ന് എനിക്ക് നിങ്ങളെ എങ്ങനെ സഹായിക്കാനാകും? നിങ്ങൾക്ക് ഒരു അപ്പോയിന്റ്മെന്റ് ബുക്ക് ചെയ്യാൻ ആവശ്യപ്പെടാം.",
+                askReason: "വളരെ നല്ലത്! നിങ്ങളുടെ സന്ദർശനത്തിന്റെ കാരണം എന്താണ്? (ഉദാഹരണം: പരിശോധന, ക്ലീനിംഗ്, വേദന, കൺസൾട്ടേഷൻ)",
+                askDateTime: "ശരി. നിങ്ങളുടെ അപ്പോയിന്റ്മെന്റ് എപ്പോഴാണ് ഷെഡ്യൂൾ ചെയ്യാൻ ആഗ്രഹിക്കുന്നത്? ദയവായി ഇഷ്ടമുള്ള തീയതിയും സമയവും നൽകുക.\nക്ലിനിക്ക് സമയം തിങ്കൾ മുതൽ വെള്ളി വരെ, രാവിലെ 9:00 മുതൽ വൈകുന്നേരം 5:00 വരെയാണ്. (ഉദാ: 'നാളെ ഉച്ചകഴിഞ്ഞ് 3 മണിക്ക്', 'ഏപ്രിൽ 25 രാവിലെ')",
+                askName: "മനസ്സിലായി. രോഗിയുടെ മുഴുവൻ പേര് എന്താണ്?",
+                // Modified contact prompt to mention WhatsApp
+                askContact: "നന്ദി, {name}. ബന്ധപ്പെടാനുള്ള നല്ല നമ്പർ ഏതാണ്? (ദൃഢീകരണത്തിനായി WhatsApp സന്ദേശങ്ങൾ സ്വീകരിക്കാൻ നിങ്ങൾക്ക് സാധിക്കുന്ന നമ്പർ നൽകുക)",
+                confirmBooking: "തികച്ചും ശരി! ഉറപ്പാക്കാൻ മാത്രം: {name} നുള്ള അപ്പോയിന്റ്മെന്റ് '{reason}' സംബന്ധിച്ച് {dateTime} ന്/ഏകദേശം. കോൺടാക്റ്റ് നമ്പർ: {contact}. ക്ലിനിക്ക് സമയം തിങ്കൾ-വെള്ളി, രാവിലെ 9 - വൈകുന്നേരം 5. ഇത് ശരിയാണോ? (അതെ/അല്ല)",
+                // --- Payment & Confirmation Flow Messages ---
+                askPayment: "വളരെ നല്ലത്! നിങ്ങളുടെ ബുക്കിംഗ് സ്ഥിരീകരിക്കുന്നതിന്, ഒരു ചെറിയ അഡ്വാൻസ് പേയ്മെന്റ് ആവശ്യമാണ്. ദയവായി ഏതെങ്കിലും UPI ആപ്പ് ഉപയോഗിച്ച് താഴെയുള്ള QR കോഡ് സ്കാൻ ചെയ്ത് തുടരുക.",
+                paymentSimulation: "നിങ്ങളുടെ പേയ്‌മെന്റ് സ്കാനിനായി കാത്തിരിക്കുന്നു...", // Modified text
+                paymentSuccessful: "പേയ്മെന്റ് വിജയിച്ചു! നിങ്ങളുടെ അപ്പോയിന്റ്മെന്റ് സ്ഥിരീകരിക്കുന്നു...", // New message
+                whatsappSending: "വാട്ട്‌സ്ആപ്പിലേക്ക് സ്ഥിരീകരണം അയയ്ക്കുന്നു...", // New message for simulation
+                // Modified final confirmation text to mention WhatsApp
+                bookingPaidConfirmed: "നിങ്ങളുടെ അപ്പോയിന്റ്മെന്റ് സ്ഥിരീകരിച്ചു! നിങ്ങളുടെ വാട്ട്‌സ്ആപ്പ് നമ്പറിലേക്ക്: {contact} വിശദമായ സ്ഥിരീകരണ സന്ദേശം അയച്ചിട്ടുണ്ട്. മൗലി ഡെന്റൽ ക്ലിനിക്കിൽ നിങ്ങളെ കാണാൻ ഞങ്ങൾ കാത്തിരിക്കുന്നു!",
+                // --- End Payment & Confirmation ---
+                bookingCancelled: "ശരി, ബുക്കിംഗ് പ്രക്രിയ റദ്ദാക്കിയിരിക്കുന്നു. നിങ്ങൾക്ക് മറ്റെന്തെങ്കിലും ആവശ്യമുണ്ടെങ്കിൽ എന്നെ അറിയിക്കുക.",
+                fallback: "ക്ഷമിക്കണം, എനിക്കത് ശരിയായി മനസ്സിലായില്ല. ദയവായി അത് മാറ്റിപ്പറയാമോ? നിങ്ങൾക്ക് 'അപ്പോയിന്റ്മെന്റ് ബുക്ക് ചെയ്യുക' എന്ന് ചോദിക്കാം.",
+                enterMessage: "ദയവായി ഒരു സന്ദേശം ടൈപ്പ് ചെയ്യുക.",
+                changeLang: "ഭാഷ മലയാളത്തിലേക്ക് മാറ്റി.",
+                placeholder: "നിങ്ങളുടെ സന്ദേശം ടൈപ്പ് ചെയ്യുക...",
+                send: "അയയ്ക്കുക",
+                yes: "അതെ",
+                no: "അല്ല",
+                bookKeywords: ["ബുക്ക്", "അപ്പോയിന്റ്മെന്റ്", "സമയം", "ഡോക്ടർ", "ദന്തരോഗവിദഗ്ദ്ധൻ"],
+                reasonKeywords: ["പരിശോധന", "ക്ലീനിംഗ്", "വേദന", "കൺസൾട്ടേഷൻ", "പല്ലുവേദന", "ഫില്ലിംഗ്", "ബ്രേസസ്", "ഇംപ്ലാന്റ്"],
+                greetingKeywords: ["നമസ്കാരം", "ഹലോ", "ഹായ്", "സുപ്രഭാതം", "ശുഭദിനം", "ശുഭസായാഹ്നം"]
+            }
+        };
+
+        // --- Chat State ---
+        let currentLanguage = 'en';
+        // Added 'processing_payment' state
+        let chatState = 'idle'; // idle, awaiting_reason, awaiting_datetime, awaiting_name, awaiting_contact, awaiting_confirmation, processing_payment
+        let bookingDetails = {
+            reason: null,
+            dateTime: null,
+            name: null,
+            contact: null
+        };
+
+        // --- Helper Functions ---
+
+        // Function to add a message to the chatbox
+        function addMessage(sender, text) {
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message', sender === 'bot' ? 'bot-message' : 'user-message');
+            // Use textContent for security (prevents HTML injection)
+            messageDiv.textContent = text;
+            // Insert before the typing indicator
+            chatbox.insertBefore(messageDiv, typingIndicator);
+            chatbox.scrollTop = chatbox.scrollHeight; // Scroll to bottom
+        }
+
+         // Function to add an image message to the chatbox
+        function addImageMessage(sender, imageUrl, altText = '') {
+            const messageDiv = document.createElement('div');
+            // Use 'image-message' class for specific styling
+            messageDiv.classList.add('image-message', sender === 'bot' ? 'bot-message' : 'user-message');
+            // Add flex classes to center the image within the bubble
+            messageDiv.classList.add('flex', 'flex-col', 'items-center', 'justify-center');
+
+            const imgElement = document.createElement('img');
+            imgElement.src = imageUrl;
+            imgElement.alt = altText;
+            // Add Tailwind classes for basic image styling
+            imgElement.classList.add('max-w-full', 'h-auto', 'rounded-md', 'shadow');
+
+            messageDiv.appendChild(imgElement);
+
+            // Insert before the typing indicator
+            chatbox.insertBefore(messageDiv, typingIndicator);
+            chatbox.scrollTop = chatbox.scrollHeight; // Scroll to bottom
+        }
+
+
+        // Function to show typing indicator
+        function showTyping() {
+            typingIndicator.classList.remove('hidden');
+             typingIndicator.classList.add('flex');
+            chatbox.scrollTop = chatbox.scrollHeight;
+        }
+
+        // Function to hide typing indicator
+        function hideTyping() {
+            typingIndicator.classList.add('hidden');
+            typingIndicator.classList.remove('flex');
+        }
+
+        // Function to get translation
+        function t(key, replacements = {}) {
+            // Fallback logic: current lang -> english -> key name
+            let text = (translations[currentLanguage] && translations[currentLanguage][key]) ||
+                         (translations['en'] && translations['en'][key]) ||
+                         `Missing translation: ${key}`;
+            // Replace placeholders like {name}
+            for (const placeholder in replacements) {
+                const regex = new RegExp(`\\{${placeholder}\\}`, 'g');
+                text = text.replace(regex, replacements[placeholder]);
+            }
+            return text;
+        }
+
+        // Function to simulate bot response delay
+        function botResponse(text, delay = 1000) {
+            // Return a promise that resolves when the message is added
+            return new Promise(resolve => {
+                showTyping();
+                setTimeout(() => {
+                    hideTyping();
+                    addMessage('bot', text);
+                    resolve(); // Resolve the promise after adding the message
+                }, delay);
+            });
+        }
+
+         // Function to simulate bot response delay for image messages
+        function botImageResponse(imageUrl, altText = '', delay = 1000) {
+             return new Promise(resolve => {
+                 showTyping();
+                 setTimeout(() => {
+                     hideTyping();
+                     addImageMessage('bot', imageUrl, altText);
+                     resolve();
+                 }, delay);
+             });
+         }
+
+
+        // Function to check if input contains any keyword from a list (case-insensitive)
+        function containsKeyword(text, keywords) {
+            const lowerText = text.toLowerCase().trim();
+            const keywordsArray = Array.isArray(keywords) ? keywords : [keywords];
+            return keywordsArray.some(keyword => lowerText.includes(keyword.toLowerCase()));
+        }
+
+        // --- Modified Function to Handle Payment Simulation with QR Code and WhatsApp Confirmation ---
+        async function handlePaymentSimulation() {
+            chatState = 'processing_payment'; // Set state to indicate payment process is ongoing
+            userInput.disabled = true; // Disable input during simulation
+            sendButton.disabled = true;
+
+            // Step 1: Ask for payment and show instructions
+            await botResponse(t('askPayment'), 500);
+
+            // Step 2: Display the QR code image
+            // NOTE: Ensure 'WhatsApp Image 2025-04-21 at 10.24.19 PM.jpeg' is in the same directory
+            // or provide the correct path/URL.
+            await botImageResponse('WhatsApp Image 2025-04-21 at 10.24.19 PM.jpeg', 'UPI Payment QR Code', 1500);
+
+            // Optional: Display the UPI ID text below the QR code image
+            await botResponse('UPI ID: hsankpal48@oksbi', 500);
+
+
+            // Step 3: Simulate waiting for the scan/payment completion
+            await botResponse(t('paymentSimulation'), 7000); // Longer wait to simulate user scanning QR
+
+            // Step 4: Simulate payment successful message
+            await botResponse(t('paymentSuccessful'), 1500); // Shorter delay
+
+            // Step 5: Simulate sending WhatsApp confirmation
+            await botResponse(t('whatsappSending'), 2000); // Simulate sending delay
+
+
+            // Step 6: Display final confirmation message mentioning WhatsApp
+            await botResponse(t('bookingPaidConfirmed', bookingDetails), 1000);
+
+            // Reset state and re-enable input
+            userInput.disabled = false;
+            sendButton.disabled = false;
+            resetChat();
+        }
+
+
+        // --- Core Chat Logic ---
+        function handleUserInput() {
+            // Ignore input if payment simulation is in progress
+             if (chatState === 'processing_payment') return;
+
+            const text = userInput.value.trim();
+            if (!text) {
+                 botResponse(t('enterMessage'), 200); // Quick response if empty
+                 return;
+            }
+
+            addMessage('user', text);
+            userInput.value = ''; // Clear input field
+
+            processMessage(text);
+        }
+
+        function processMessage(userMessage) {
+            // Ignore processing if payment simulation is happening
+             if (chatState === 'processing_payment') return;
+
+            const lowerMessage = userMessage.toLowerCase();
+            const lang = currentLanguage; // Use current language for keyword matching
+
+            // --- State Machine Logic ---
+            switch (chatState) {
+                case 'idle':
+                    if (containsKeyword(lowerMessage, t('bookKeywords'))) {
+                        botResponse(t('askReason'));
+                        chatState = 'awaiting_reason';
+                    } else if (containsKeyword(lowerMessage, t('greetingKeywords'))) {
+                         botResponse(t('welcome'));
+                    } else {
+                        botResponse(t('fallback'));
+                    }
+                    break;
+
+                case 'awaiting_reason':
+                    if (userMessage.length > 3) {
+                        bookingDetails.reason = userMessage;
+                        botResponse(t('askDateTime'));
+                        chatState = 'awaiting_datetime';
+                    } else {
+                         botResponse(t('askReason'));
+                    }
+                    break;
+
+                case 'awaiting_datetime':
+                    if (userMessage.length > 5) {
+                        bookingDetails.dateTime = userMessage;
+                        botResponse(t('askName'));
+                        chatState = 'awaiting_name';
+                    } else {
+                        botResponse(t('askDateTime'));
+                    }
+                    break;
+
+                case 'awaiting_name':
+                    if (userMessage.length > 2) {
+                        bookingDetails.name = userMessage;
+                        // Use the modified askContact prompt
+                        botResponse(t('askContact', { name: bookingDetails.name }));
+                        chatState = 'awaiting_contact';
+                    } else {
+                         botResponse(t('askName'));
+                    }
+                    break;
+
+                case 'awaiting_contact':
+                     // Basic check for contact: contains digits and reasonable length
+                    if (/\d/.test(userMessage) && userMessage.replace(/\D/g, '').length >= 8) { // Allow non-digits but check digit count
+                        bookingDetails.contact = userMessage;
+                        botResponse(t('confirmBooking', bookingDetails));
+                        chatState = 'awaiting_confirmation';
+                    } else {
+                         // Use the modified askContact prompt
+                        botResponse(t('askContact', { name: bookingDetails.name }));
+                    }
+                    break;
+
+                case 'awaiting_confirmation':
+                    if (containsKeyword(lowerMessage, t('yes'))) {
+                        // --- Trigger Payment Simulation with WhatsApp step ---
+                        handlePaymentSimulation();
+                        // State change and reset are handled within handlePaymentSimulation
+                    } else if (containsKeyword(lowerMessage, t('no'))) {
+                        botResponse(t('bookingCancelled'));
+                        resetChat();
+                    } else {
+                        // Ask again for confirmation
+                        botResponse(t('confirmBooking', bookingDetails));
+                    }
+                    break;
+
+                // No case needed for 'processing_payment' as input is disabled/ignored
+
+                default:
+                    botResponse(t('fallback'));
+                    resetChat();
+            }
+        }
+
+        // Function to reset chat state and booking details
+        function resetChat() {
+            chatState = 'idle';
+            bookingDetails = { reason: null, dateTime: null, name: null, contact: null };
+            // Ensure input is enabled after reset, in case of errors
+            userInput.disabled = false;
+            sendButton.disabled = false;
+        }
+
+        // Function to change language and restart conversation
+        function changeLanguage(lang) {
+            if (translations[lang]) {
+                currentLanguage = lang;
+                userInput.placeholder = t('placeholder');
+                addMessage('bot', t('changeLang')); // Add language change confirmation in new language
+                resetChat();
+                botResponse(t('welcome'), 500);
+            } else {
+                console.error("Selected language not found:", lang);
+                addMessage('bot', "Sorry, the selected language is not available."); // Fallback message in English
+            }
+        }
+
+        // --- Event Listeners ---
+        sendButton.addEventListener('click', handleUserInput);
+        userInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter' && !event.shiftKey && !event.ctrlKey && !event.altKey) {
+                event.preventDefault();
+                handleUserInput();
+            }
+        });
+        languageSelector.addEventListener('change', (event) => {
+            changeLanguage(event.target.value);
+        });
+
+        // --- Initialisation ---
+        function initializeChat() {
+             userInput.placeholder = t('placeholder');
+             botResponse(t('welcome'), 500);
+        }
+
+        // Start the chat when the page loads
+        window.onload = initializeChat;
+
+    </script>
+</body>
+</html>Add initial chatbot HTML
